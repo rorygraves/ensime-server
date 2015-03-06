@@ -561,7 +561,6 @@ class SwankProtocol(actorSystem: ActorSystem,
        */
       case ("swank:init-project", Nil) =>
         sendRPCAckOK(callId)
-        rpcTarget.rpcNotifyClientReady()
         rpcTarget.rpcSubscribeAsync((e) => { sendEvent(e) })
 
       /**
@@ -588,8 +587,8 @@ class SwankProtocol(actorSystem: ActorSystem,
        */
       case ("swank:peek-undo", Nil) =>
         rpcTarget.rpcPeekUndo() match {
-          case Right(result) => sendRPCReturn(toWF(result), callId)
-          case Left(msg) => sendRPCError(ErrPeekUndoFailed, msg, callId)
+          case Some(result) => sendRPCReturn(toWF(result), callId)
+          case None => sendRPCError(ErrPeekUndoFailed, "No such undo.", callId)
         }
       /**
        * Doc RPC:
@@ -1528,7 +1527,7 @@ class SwankProtocol(actorSystem: ActorSystem,
        *   (:return (:ok t) 42)
        */
       case ("swank:debug-continue", StringAtom(threadId) :: Nil) =>
-        val result = rpcTarget.rpcDebugContinue(threadId)
+        val result = rpcTarget.rpcDebugContinue(ThreadId(threadId))
         sendRPCReturn(toWF(result), callId)
 
       /**
@@ -1547,7 +1546,7 @@ class SwankProtocol(actorSystem: ActorSystem,
        *   (:return (:ok t) 42)
        */
       case ("swank:debug-step", StringAtom(threadId) :: Nil) =>
-        val result = rpcTarget.rpcDebugStep(threadId)
+        val result = rpcTarget.rpcDebugStep(ThreadId(threadId))
         sendRPCReturn(toWF(result), callId)
 
       /**
@@ -1566,7 +1565,7 @@ class SwankProtocol(actorSystem: ActorSystem,
        *   (:return (:ok t) 42)
        */
       case ("swank:debug-next", StringAtom(threadId) :: Nil) =>
-        val result = rpcTarget.rpcDebugNext(threadId)
+        val result = rpcTarget.rpcDebugNext(ThreadId(threadId))
         sendRPCReturn(toWF(result), callId)
 
       /**
@@ -1585,7 +1584,7 @@ class SwankProtocol(actorSystem: ActorSystem,
        *   (:return (:ok t) 42)
        */
       case ("swank:debug-step-out", StringAtom(threadId) :: Nil) =>
-        val result = rpcTarget.rpcDebugStepOut(threadId)
+        val result = rpcTarget.rpcDebugStepOut(ThreadId(threadId))
         sendRPCReturn(toWF(result), callId)
 
       /**
@@ -1605,7 +1604,7 @@ class SwankProtocol(actorSystem: ActorSystem,
        *   (:return (:ok (:slot :thread-id "7" :frame 2 :offset 0)) 42)
        */
       case ("swank:debug-locate-name", StringAtom(threadId) :: StringAtom(name) :: Nil) =>
-        val result = rpcTarget.rpcDebugLocateName(threadId, name)
+        val result = rpcTarget.rpcDebugLocateName(ThreadId(threadId), name)
         result match {
           case Some(loc) =>
             sendRPCReturn(toWF(loc), callId)
@@ -1654,7 +1653,7 @@ class SwankProtocol(actorSystem: ActorSystem,
        *   (:return (:ok "A little lamb") 42)
        */
       case ("swank:debug-to-string", StringAtom(threadId) :: DebugLocationExtractor(loc) :: Nil) =>
-        val result = rpcTarget.rpcDebugToString(threadId, loc)
+        val result = rpcTarget.rpcDebugToString(ThreadId(threadId), loc)
         result match {
           case Some(value) => sendRPCReturn(toWF(value), callId)
           case None => sendRPCReturn(toWF(value = false), callId)
@@ -1697,7 +1696,7 @@ class SwankProtocol(actorSystem: ActorSystem,
        *   (:return (:ok (:frames () :thread-id "23" :thread-name "main")) 42)
        */
       case ("swank:debug-backtrace", StringAtom(threadId) :: IntAtom(index) :: IntAtom(count) :: Nil) =>
-        val result = rpcTarget.rpcDebugBacktrace(threadId, index, count)
+        val result = rpcTarget.rpcDebugBacktrace(ThreadId(threadId), index, count)
         sendRPCReturn(toWF(result), callId)
 
       /**
@@ -1853,11 +1852,11 @@ object SwankProtocol {
           }
         case SymbolAtom("slot") =>
           for (
-            StringAtom(id) <- m.get(key(":thread-id"));
+            StringAtom(threadId) <- m.get(key(":thread-id"));
             IntAtom(frame) <- m.get(key(":frame"));
             IntAtom(offset) <- m.get(key(":offset"))
           ) yield {
-            DebugStackSlot(id, frame, offset)
+            DebugStackSlot(ThreadId(threadId), frame, offset)
           }
         case _ => None
       }

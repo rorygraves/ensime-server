@@ -75,7 +75,7 @@ class AsyncMsgHelper(actorSystem: ActorSystem) {
   private case class AsyncRequest(pe: EnsimeEvent)
 
   private class AsyncMsgHelperActor extends Actor with ActorLogging {
-    private var asyncMsgs = Map[EnsimeEvent, Int]() withDefaultValue (0)
+    private var asyncMsgs = Map[EnsimeEvent, Int]().withDefaultValue(0)
 
     private var outstandingAsyncs = Vector[(EnsimeEvent, ActorRef)]()
 

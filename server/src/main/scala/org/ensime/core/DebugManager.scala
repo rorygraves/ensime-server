@@ -21,15 +21,15 @@ case class DebugStartVMReq(commandLine: String) extends RPCRequest
 case class DebugAttachVMReq(hostname: String, port: String) extends RPCRequest
 case object DebugStopVMReq extends RPCRequest
 case object DebugRunReq extends RPCRequest
-case class DebugContinueReq(threadId: String) extends RPCRequest
-case class DebugNextReq(threadId: String) extends RPCRequest
-case class DebugStepReq(threadId: String) extends RPCRequest
-case class DebugStepOutReq(threadId: String) extends RPCRequest
-case class DebugLocateNameReq(threadId: String, name: String) extends RPCRequest
+case class DebugContinueReq(threadId: ThreadId) extends RPCRequest
+case class DebugNextReq(threadId: ThreadId) extends RPCRequest
+case class DebugStepReq(threadId: ThreadId) extends RPCRequest
+case class DebugStepOutReq(threadId: ThreadId) extends RPCRequest
+case class DebugLocateNameReq(threadId: ThreadId, name: String) extends RPCRequest
 case class DebugValueReq(loc: DebugLocation) extends RPCRequest
-case class DebugToStringReq(threadId: String, loc: DebugLocation) extends RPCRequest
+case class DebugToStringReq(threadId: ThreadId, loc: DebugLocation) extends RPCRequest
 case class DebugSetValueReq(loc: DebugLocation, newValue: String) extends RPCRequest
-case class DebugBacktraceReq(threadId: String, index: Int, count: Int) extends RPCRequest
+case class DebugBacktraceReq(threadId: ThreadId, index: Int, count: Int) extends RPCRequest
 case object DebugActiveVMReq extends RPCRequest
 case class DebugSetBreakpointReq(file: String, line: Int) extends RPCRequest
 case class DebugClearBreakpointReq(file: String, line: Int) extends RPCRequest
@@ -188,7 +188,7 @@ class DebugManager(
     }
   }
 
-  private def handleRPCWithVMAndThread(threadId: String)(action: ((VM, ThreadReference) => Unit)) = {
+  private def handleRPCWithVMAndThread(threadId: ThreadId)(action: ((VM, ThreadReference) => Unit)) = {
     withVM { vm =>
       (for (thread <- vm.threadById(threadId)) yield {
         action(vm, thread)
@@ -351,7 +351,7 @@ class DebugManager(
               val breaks = BreakpointList(activeBreakpoints.toList, pendingBreakpoints)
               sender ! breaks
 
-            case DebugNextReq(threadId: String) =>
+            case DebugNextReq(threadId: ThreadId) =>
               handleRPCWithVMAndThread(threadId) {
                 (vm, thread) =>
                   vm.newStepRequest(thread,
@@ -360,7 +360,7 @@ class DebugManager(
                   sender ! true
               }
 
-            case DebugStepReq(threadId: String) =>
+            case DebugStepReq(threadId: ThreadId) =>
               handleRPCWithVMAndThread(threadId) {
                 (vm, thread) =>
                   vm.newStepRequest(thread,
@@ -369,7 +369,7 @@ class DebugManager(
                   sender ! true
               }
 
-            case DebugStepOutReq(threadId: String) =>
+            case DebugStepOutReq(threadId: ThreadId) =>
               handleRPCWithVMAndThread(threadId) {
                 (vm, thread) =>
                   vm.newStepRequest(thread,
@@ -378,12 +378,12 @@ class DebugManager(
                   sender ! true
               }
 
-            case DebugLocateNameReq(threadId: String, name: String) =>
+            case DebugLocateNameReq(threadId: ThreadId, name: String) =>
               handleRPCWithVMAndThread(threadId) {
                 (vm, thread) =>
                   sender ! vm.locationForName(thread, name)
               }
-            case DebugBacktraceReq(threadId: String, index: Int, count: Int) =>
+            case DebugBacktraceReq(threadId: ThreadId, index: Int, count: Int) =>
               handleRPCWithVMAndThread(threadId) { (vm, thread) =>
                 val bt = vm.backtrace(thread, index, count)
                 sender ! bt
@@ -627,8 +627,8 @@ class DebugManager(
       buf.map(_.loc).toSet
     }
 
-    def threadById(id: String): Option[ThreadReference] = {
-      vm.allThreads().find(t => t.uniqueID.toString == id)
+    def threadById(id: ThreadId): Option[ThreadReference] = {
+      vm.allThreads().find(t => t.uniqueID == id.id)
     }
 
     // Helper as Value.toString doesn't give
@@ -758,7 +758,7 @@ class DebugManager(
         Some(DebugObjectReference(remember(objRef).uniqueID))
       } else {
         stackSlotForName(thread, name).map({ slot =>
-          DebugStackSlot(thread.uniqueID.toString, slot._1, slot._2)
+          DebugStackSlot(ThreadId(thread.uniqueID), slot._1, slot._2)
         }).orElse(
           fieldByName(objRef, name).flatMap { f =>
             Some(DebugObjectField(objRef.uniqueID, f.name))
@@ -805,7 +805,7 @@ class DebugManager(
       }
     }
 
-    def debugValueAtLocationToString(threadId: String, location: DebugLocation): Option[String] = {
+    def debugValueAtLocationToString(threadId: ThreadId, location: DebugLocation): Option[String] = {
       valueAtLocation(location) match {
         case Some(arr: ArrayReference) =>
           val quantifier = if (arr.length == 1) "element" else "elements" // TODO: replace with something less naive
