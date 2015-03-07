@@ -108,6 +108,11 @@ object SwankProtocolConversions {
   implicit val DebugVMStartEventFormat = singletonFormat[DebugVMStartEvent.type]
   implicit val DebugVMDisconnectEventFormat = singletonFormat[DebugVMDisconnectEvent.type]
 
+  implicit val ThreadIdFormat: SexpFormat[ThreadId] = viaString(new ViaString[ThreadId] {
+    def toSexpString(uuid: ThreadId) = uuid.id.toString
+    def fromSexpString(s: String) = ThreadId(s)
+  })
+
   /**
    * These implicit vals are actually optional - S-Express doesn't
    * *need* them - and exist only to help the compiler to resolve
