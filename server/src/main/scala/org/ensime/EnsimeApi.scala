@@ -11,14 +11,6 @@ trait EnsimeApi {
   def rpcShutdownServer(): Unit
 
   /**
-   * Subscribe to async events from the project, replaying previously seen events if requested.
-   * The first subscriber will get all undelivered events (subsequent subscribers do not).
-   * @param handler The callback handler for events
-   * @return True if caller is first subscriber, False otherwise
-   */
-  def rpcSubscribeAsync(handler: EnsimeEvent => Unit): Boolean
-
-  /**
    * Return the details of the latest Undo operation on the undo stack.
    * @return The latest Undo information (if it exists) or None
    */

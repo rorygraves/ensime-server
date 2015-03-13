@@ -7,6 +7,7 @@ import akka.actor.{ ActorRef, ActorSystem }
 import org.ensime.EnsimeApi
 import org.ensime.core._
 import org.ensime.model._
+import org.ensime.server.EventServer
 import org.ensime.server.protocol.Protocol
 import org.ensime.util.SExp._
 import org.ensime.util._
@@ -14,7 +15,7 @@ import org.slf4j.LoggerFactory
 
 import scala.concurrent.Future
 
-class SwankProtocol(actorSystem: ActorSystem,
+class SwankProtocol(server: EventServer, actorSystem: ActorSystem,
     val peer: ActorRef,
     val rpcTarget: EnsimeApi) extends Protocol with SwankWireFormatCodec {
 
@@ -564,7 +565,7 @@ class SwankProtocol(actorSystem: ActorSystem,
        */
       case ("swank:init-project", Nil) =>
         sendRPCAckOK(callId)
-        rpcTarget.rpcSubscribeAsync((e) => { sendEvent(e) })
+        server.subscribeToEvents(e => { sendEvent(e) })
 
       /**
        * Doc RPC:
@@ -1874,10 +1875,10 @@ object SwankProtocol {
       case StringAtom(file) => Some(FileSourceFileInfo(new File(file)))
       case sexp: SExpList =>
         val m = sexp.toKeywordMap
-        val file = m.get(key(":file"))
-        val contents = m.get(key(":contents"))
-        val contentsIn = m.get(key(":contents-in"))
-        (file, contents, contentsIn) match {
+        val fileOpt = m.get(key(":file"))
+        val contentsOpt = m.get(key(":contents"))
+        val contentsInOpt = m.get(key(":contents-in"))
+        (fileOpt, contentsOpt, contentsInOpt) match {
           case (Some(StringAtom(file)), None, None) =>
             Some(FileSourceFileInfo(new File(file)))
           case (Some(StringAtom(file)), Some(StringAtom(contents)), None) =>

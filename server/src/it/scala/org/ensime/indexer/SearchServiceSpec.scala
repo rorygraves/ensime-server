@@ -3,7 +3,6 @@ package org.ensime.indexer
 import org.scalatest._
 import org.ensime.fixture._
 
-import org.ensime.config._
 import scala.concurrent._
 import scala.concurrent.duration._
 import pimpathon.file._

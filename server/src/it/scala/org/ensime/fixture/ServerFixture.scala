@@ -18,7 +18,7 @@ trait ServerFixture {
 
 object ServerFixture {
   private[fixture] def startup(config: EnsimeConfig)(implicit sys: ActorSystem): (Server, AsyncMsgHelper) = {
-    val server = Server.initialiseServer(config)
+    val (server, initFut) = Server.initialiseServer(config)
 
     val connInfo = server.project.rpcConnectionInfo()
     assert(connInfo.pid == None)
@@ -26,12 +26,13 @@ object ServerFixture {
 
     val asyncHelper = new AsyncMsgHelper(sys)
 
-    server.project.rpcSubscribeAsync(event => { asyncHelper.asyncReceived(event) })
+    server.subscribeToEvents(event => { asyncHelper.asyncReceived(event) })
 
     asyncHelper.expectAsync(60 seconds, AnalyzerReadyEvent) // compiler ready
     asyncHelper.expectAsync(60 seconds, FullTypeCheckCompleteEvent)
     asyncHelper.expectAsync(240 seconds, IndexerReadyEvent)
 
+    assert(initFut.isCompleted, "If we have seen init messages, future should be complete")
     (server, asyncHelper)
   }
 }

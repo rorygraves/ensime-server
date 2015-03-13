@@ -9,13 +9,14 @@ import com.google.common.base.Charsets
 import com.google.common.io.Files
 import org.ensime.EnsimeApi
 import org.ensime.config._
-import org.ensime.core.Project
+import org.ensime.core.{ EnsimeEvent, Project }
 import org.ensime.server.protocol.swank.SwankProtocol
 import org.ensime.server.protocol.{ IncomingMessageEvent, OutgoingMessageEvent, Protocol }
 import org.ensime.util._
 import org.slf4j._
 import org.slf4j.bridge.SLF4JBridgeHandler
 
+import scala.concurrent.Future
 import scala.util.Properties
 import scala.util.Properties._
 
@@ -44,12 +45,18 @@ object Server {
     initialiseServer(config)
   }
 
-  def initialiseServer(config: EnsimeConfig): Server = {
+  /**
+   * Initialise a server based on the given ensime config.
+   * @param config The ensime config
+   * @return A tuple of Server instance and initialisation future.
+   * @see Project.start()
+   */
+  def initialiseServer(config: EnsimeConfig): (Server, Future[Unit]) = {
     val server = new Server(config, "127.0.0.1", 0,
-      (actorSystem, peerRef, rpcTarget) => { new SwankProtocol(actorSystem, peerRef, rpcTarget) }
+      (serverInst, actorSystem, peerRef, rpcTarget) => { new SwankProtocol(serverInst, actorSystem, peerRef, rpcTarget) }
     )
-    server.start()
-    server
+    val initFuture = server.start()
+    (server, initFuture)
   }
 }
 
@@ -57,7 +64,7 @@ class Server(
     val config: EnsimeConfig,
     host: String,
     requestedPort: Int,
-    connectionCreator: (ActorSystem, ActorRef, EnsimeApi) => Protocol) {
+    connectionCreator: (Server, ActorSystem, ActorRef, EnsimeApi) => Protocol) extends EventServer {
 
   import org.ensime.server.Server.log
 
@@ -74,11 +81,18 @@ class Server(
 
   writePort(config.cacheDir, actualPort)
 
-  val project = new Project(config, actorSystem)
+  val asyncHandler = new ServerEventManager
 
-  def start(): Unit = {
-    project.initProject()
+  val project = new Project(config, actorSystem, Some(asyncHandler.receiveEvent))
+
+  /**
+   * Start the server
+   * @return A Future representing when the server initialisation is complete.
+   */
+  def start(): Future[Unit] = {
+    val initFuture = project.initProject()
     startSocketListener()
+    initFuture
   }
 
   private val hasShutdownFlag = new AtomicBoolean(false)
@@ -114,6 +128,7 @@ class Server(
     actorSystem.awaitTermination()
     log.info("Shutdown complete")
   }
+
   private def writePort(cacheDir: File, port: Int): Unit = {
     val portfile = new File(cacheDir, "port")
     if (!portfile.exists()) {
@@ -131,6 +146,37 @@ class Server(
     val out = new PrintWriter(portfile)
     try out.println(port)
     finally out.close()
+  }
+
+  override def subscribeToEvents(handler: EnsimeEvent => Unit): Boolean = {
+    asyncHandler.subscribeToEvents(handler)
+  }
+}
+
+class ServerEventManager {
+
+  // buffer events until the first client connects
+  private var asyncEvents = Vector[EnsimeEvent]()
+  private var asyncListeners: List[EnsimeEvent => Unit] = Nil
+
+  def subscribeToEvents(handler: EnsimeEvent => Unit): Boolean = synchronized {
+    if (asyncListeners.isEmpty) {
+      asyncListeners ::= handler
+      asyncEvents.foreach { event => handler(event) }
+      asyncEvents = Vector.empty
+      true
+    } else {
+      false
+    }
+  }
+  def receiveEvent(event: EnsimeEvent): Unit = synchronized {
+    if (asyncListeners.isEmpty) {
+      asyncEvents :+= event
+    } else {
+      asyncListeners foreach { l =>
+        l(event)
+      }
+    }
   }
 }
 
