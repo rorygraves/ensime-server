@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory
 import scala.collection.mutable
 import scala.concurrent.duration._
 import scala.concurrent.{ Future, Promise }
+import scala.util.Try
 
 class Project(
     val config: EnsimeConfig,
@@ -20,10 +21,6 @@ class Project(
   val log = LoggerFactory.getLogger(this.getClass)
 
   protected val actor = actorSystem.actorOf(Props(new ProjectActor()), "project")
-
-  def !(msg: AnyRef): Unit = {
-    actor ! msg
-  }
 
   private val readyPromise = Promise[Unit]()
 
@@ -44,7 +41,7 @@ class Project(
   import scala.concurrent.ExecutionContext.Implicits.global
   search.refresh().onSuccess {
     case (deletes, inserts) =>
-      actor ! AsyncEvent(IndexerReadyEvent)
+      actor ! IndexerReadyEvent
       log.debug(s"indexed $inserts and removed $deletes")
   }
 
@@ -72,6 +69,9 @@ class Project(
 
     private var earliestRetypecheck = Deadline.now
 
+    private var indexerReady = false
+    private var analyserReady = false
+
     override def postStop(): Unit = {
       tick.foreach(_.cancel())
     }
@@ -81,6 +81,14 @@ class Project(
     private var asyncListeners: List[EnsimeEvent => Unit] = Nil
 
     override def receive: Receive = waiting orElse ready
+
+    /**
+     * If startup conditions are met, complete the initialisation promise.
+     */
+    def checkInitialisationComplete(): Unit = {
+      if (indexerReady && analyserReady && !readyPromise.isCompleted)
+        readyPromise.tryComplete(Try(()))
+    }
 
     private val ready: Receive = {
       case Retypecheck =>
@@ -95,13 +103,25 @@ class Project(
       case AddUndo(sum, changes) =>
         addUndo(sum, changes)
 
+      case AnalyzerReadyEvent =>
+        analyserReady = true
+        checkInitialisationComplete()
+        forwardEvent(AnalyzerReadyEvent)
+      case IndexerReadyEvent =>
+        indexerReady = true
+        checkInitialisationComplete()
+        forwardEvent(IndexerReadyEvent)
       case AsyncEvent(event) =>
-        asyncListeners foreach { l =>
-          l(event)
-        }
+        forwardEvent(event)
       case SubscribeAsync(handler) =>
         asyncListeners ::= handler
         sender ! false
+    }
+
+    private def forwardEvent(event: EnsimeEvent): Unit = {
+      asyncListeners foreach { l =>
+        l(event)
+      }
     }
 
     private val waiting: Receive = {
