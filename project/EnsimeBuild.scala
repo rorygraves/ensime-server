@@ -38,7 +38,7 @@ object EnsimeBuild extends Build with JdkResolver {
     fork := true,
     parallelExecution in Test := true,
     testForkedParallel in Test := true,
-    javaOptions ++= Seq("-XX:MaxPermSize=256m", "-Xmx2g", "-XX:+UseConcMarkSweepGC"),
+    javaOptions ++= Seq("-XX:MaxPermSize=256m", "-Xmx1024m", "-XX:+UseConcMarkSweepGC"),
     javaOptions in Test += "-Dlogback.configurationFile=../logback-test.xml",
     testOptions in Test ++= noColorIfEmacs,
     updateOptions := updateOptions.value.withCachedResolution(true),
@@ -82,7 +82,9 @@ object EnsimeBuild extends Build with JdkResolver {
 
   ////////////////////////////////////////////////
   // modules
-  lazy val sexpress = Project("sexpress", file("sexpress"), settings = commonSettings) settings (
+  lazy val sexpress = Project("sexpress", file("sexpress")) settings (
+    commonSettings: _*
+  ) settings (
     licenses := Seq("LGPL 3.0" -> url("http://www.gnu.org/licenses/lgpl-3.0.txt")),
     libraryDependencies ++= Seq(
       "org.scala-lang" % "scala-reflect" % scalaVersion.value,
@@ -95,15 +97,19 @@ object EnsimeBuild extends Build with JdkResolver {
     ) ++ testLibs(scalaVersion.value)
   )
 
-  lazy val api = Project("api", file("api"), settings = commonSettings) settings (
+  lazy val api = Project("api", file("api")) settings (
+    commonSettings: _*
+  ) settings (
     libraryDependencies ++= Seq(
       "com.github.stacycurl" %% "pimpathon-core" % "1.2.0",
       "com.danieltrinh" %% "scalariform" % "0.1.5"
     ) ++ testLibs(scalaVersion.value)
   )
 
-  lazy val swank = Project("swank", file("swank"), settings = commonSettings) dependsOn (
+  lazy val swank = Project("swank", file("swank")).dependsOn (
     api, sexpress, sexpress % "test->test"
+  ) settings (
+    commonSettings: _*
   ) settings (
     libraryDependencies ++= Seq(
       "com.typesafe.akka" %% "akka-slf4j" % "2.3.9",
@@ -113,18 +119,24 @@ object EnsimeBuild extends Build with JdkResolver {
     ) ++ testLibs(scalaVersion.value)
   )
 
-  lazy val testingEmpty = Project("testingEmpty", file("testing/empty"), settings = basicSettings).settings(
+  lazy val testingEmpty = Project("testingEmpty", file("testing/empty")) settings (
+    basicSettings: _*
+  ) settings (
     ScoverageKeys.coverageExcludedPackages := ".*"
   )
                           //.settings (publishArtifact := false)
 
-  lazy val testingSimple = Project("testingSimple", file("testing/simple"), settings = basicSettings) settings (
+  lazy val testingSimple = Project("testingSimple", file("testing/simple")) settings (
+    basicSettings: _*
+  ) settings (
     libraryDependencies += "org.scalatest" %% "scalatest" % "2.2.4" % "test" intransitive(),
     //publishArtifact := false,
     ScoverageKeys.coverageExcludedPackages := ".*"
   )
 
-  lazy val testingDebug = Project("testingDebug", file("testing/debug"), settings = basicSettings).settings(
+  lazy val testingDebug = Project("testingDebug", file("testing/debug")) settings (
+    basicSettings: _*
+  ) settings (
     ScoverageKeys.coverageExcludedPackages := ".*"
   )
                           //.settings (publishArtifact := false)
@@ -137,11 +149,12 @@ object EnsimeBuild extends Build with JdkResolver {
     // https://github.com/sbt/sbt/issues/1888
     testingEmpty % "test,it", testingSimple % "test,it", testingDebug % "test,it"
   ).configs(IntegrationTest).settings (
-    commonSettings
+    commonSettings: _*
   ).settings (
-    inConfig(IntegrationTest)(Defaults.testSettings)
+    Defaults.itSettings : _*
+    //.settings(inConfig(IntegrationTest)(Defaults.testSettings): _*
   ).settings (
-    scalariformSettingsWithIt
+    scalariformSettingsWithIt: _*
   ).settings (
     // careful: parallel forks are causing weird failures
     // https://github.com/sbt/sbt/issues/1890
@@ -179,9 +192,11 @@ object EnsimeBuild extends Build with JdkResolver {
     ) ++ testLibs(scalaVersion.value, "it,test")
   )
 
-  lazy val root = Project(id = "ensime", base = file("."), settings = commonSettings) aggregate (
+  lazy val root = Project(id = "ensime", base = file(".")) aggregate (
     api, sexpress, swank, server
-  ) dependsOn (server)
+  ) dependsOn (server) settings (
+    commonSettings: _*
+  )
 }
 
 trait JdkResolver {
