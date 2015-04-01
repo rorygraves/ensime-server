@@ -1,8 +1,6 @@
 package org.ensime.core
 
-import java.io.File
-
-import akka.actor.{ Actor, ActorRef, ActorSystem, Cancellable, Props }
+import akka.actor.{Actor, ActorRef, ActorSystem, Cancellable, Props}
 import org.apache.commons.vfs2.FileObject
 import org.ensime.config._
 import org.ensime.indexer._
@@ -12,7 +10,7 @@ import org.slf4j.LoggerFactory
 
 import scala.collection.mutable
 import scala.concurrent.duration._
-import scala.concurrent.{ Future, Promise }
+import scala.concurrent.{Future, Promise}
 import scala.util.Try
 
 class Project(
@@ -29,7 +27,9 @@ class Project(
   private val resolver = new SourceResolver(config)
   // TODO: add PresCompiler to the source watcher
   private val sourceWatcher = new SourceWatcher(config, resolver :: Nil)
+
   private val search = new SearchService(config, resolver)
+
   private val reTypecheck = new ClassfileListener {
     def reTypeCheck(): Unit = actor ! AskReTypecheck
     def classfileAdded(f: FileObject): Unit = reTypeCheck()
@@ -131,6 +131,14 @@ class Project(
         asyncEvents = Vector.empty
         context.become(ready, discardOld = true)
         sender ! true
+      case AnalyzerReadyEvent =>
+        analyserReady = true
+        checkInitialisationComplete()
+        asyncEvents :+= AnalyzerReadyEvent
+      case IndexerReadyEvent =>
+        indexerReady = true
+        checkInitialisationComplete()
+        asyncEvents :+= IndexerReadyEvent
       case AsyncEvent(event) =>
         asyncEvents :+= event
     }
