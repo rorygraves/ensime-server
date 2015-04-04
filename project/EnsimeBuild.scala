@@ -38,10 +38,10 @@ object EnsimeBuild extends Build with JdkResolver {
     fork := true,
     parallelExecution in Test := true,
     testForkedParallel in Test := true,
-    javaOptions ++= Seq("-XX:MaxPermSize=256m", "-Xmx1024m", "-XX:+UseConcMarkSweepGC"),
+    javaOptions ++= Seq("-XX:MaxPermSize=256m", "-Xmx2048m", "-XX:+UseConcMarkSweepGC"),
     javaOptions in Test += "-Dlogback.configurationFile=../logback-test.xml",
     testOptions in Test ++= noColorIfEmacs,
-    updateOptions := updateOptions.value.withCachedResolution(true),
+    updateOptions := updateOptions.value.withCachedResolution(false),
     licenses := Seq("BSD 3 Clause" -> url("http://opensource.org/licenses/BSD-3-Clause")),
     homepage := Some(url("http://github.com/ensime/ensime-server")),
     publishTo <<= version { v: String =>
