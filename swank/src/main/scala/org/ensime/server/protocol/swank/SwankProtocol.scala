@@ -1,4 +1,3 @@
-
 package org.ensime.server.protocol.swank
 
 import java.io._
@@ -7,6 +6,7 @@ import akka.actor.{ ActorRef, ActorSystem }
 import org.ensime.EnsimeApi
 import org.ensime.core._
 import org.ensime.model._
+import org.ensime.server.EventServer
 import org.ensime.server.protocol.Protocol
 import org.ensime.util.SExp._
 import org.ensime.util._
@@ -14,7 +14,8 @@ import org.slf4j.LoggerFactory
 
 import scala.concurrent.Future
 
-class SwankProtocol(actorSystem: ActorSystem,
+class SwankProtocol(server: EventServer,
+    actorSystem: ActorSystem,
     val peer: ActorRef,
     val rpcTarget: EnsimeApi) extends Protocol with SwankWireFormatCodec {
 
@@ -564,7 +565,7 @@ class SwankProtocol(actorSystem: ActorSystem,
        */
       case ("swank:init-project", Nil) =>
         sendRPCAckOK(callId)
-        rpcTarget.rpcSubscribeAsync((e) => { sendEvent(e) })
+        server.subscribeToEvents(e => { sendEvent(e) })
 
       /**
        * Doc RPC:

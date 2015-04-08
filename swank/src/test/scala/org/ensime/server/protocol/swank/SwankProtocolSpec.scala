@@ -51,12 +51,13 @@ class SwankProtocolSpec extends FunSpec with ShouldMatchers with BeforeAndAfterA
       var timedOut = false
       withExpectations {
         withActorSystem { actorSystem =>
+          val s = mock[EventServer]
           val t = mock[EnsimeApi]
           val out = mock[MsgHandler]
 
           val latch = new CountDownLatch(1)
 
-          val prot = new SwankProtocol(actorSystem, null, t) {
+          val prot = new SwankProtocol(s, actorSystem, null, t) {
             override def sendMessage(o: WireFormat): Unit = {
               out.send(o.toWireString)
               latch.countDown()

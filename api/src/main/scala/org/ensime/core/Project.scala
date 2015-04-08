@@ -2,14 +2,7 @@ package org.ensime.core
 
 import java.io.File
 
-import org.ensime.config._
 import org.ensime.model._
-import org.ensime.util._
-
-import scala.collection.mutable
-import scala.concurrent.duration._
-import scala.concurrent.{ Future, Promise }
-import scala.util.Try
 
 case class RPCError(code: Int, detail: String) extends RuntimeException("" + code + ": " + detail)
 case class AsyncEvent(evt: EnsimeEvent)
@@ -52,5 +45,3 @@ case class DocUriReq(sig: DocSigPair) extends RPCRequest
 case class DocSignatureAtPointReq(file: File, range: OffsetRange) extends RPCRequest
 case class DocSignatureForSymbolReq(typeFullName: String, memberName: Option[String], signatureString: Option[String]) extends RPCRequest
 case class SymbolByNameReq(typeFullName: String, memberName: Option[String], signatureString: Option[String]) extends RPCRequest
-
-case class SubscribeAsync(handler: EnsimeEvent => Unit) extends RPCRequest

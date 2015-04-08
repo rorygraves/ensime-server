@@ -32,8 +32,9 @@ trait EnsimeConfigFixture {
 object EnsimeConfigFixture {
 
   lazy val dotEnsime = file("../.ensime")
+
   require(dotEnsime.exists,
-    "the .ensime file must exist to run the integration tests." +
+    s"the .ensime file (${dotEnsime.getCanonicalFile}) must exist to run the integration tests." +
       "Type 'sbt gen-ensime' to create it")
 
   lazy val EnsimeTestProject = EnsimeConfigProtocol.parse(dotEnsime.readLines().mkString)
@@ -131,7 +132,7 @@ trait SharedEnsimeConfigFixture extends Suite
     with EnsimeConfigFixture with BeforeAndAfterAll {
   import EnsimeConfigFixture._
 
-  private var tmpDir = tempDir(".project", s"ensime-it-${getClass.getSimpleName}-")
+  private val tmpDir = tempDir(".project", s"ensime-it-${getClass.getSimpleName}-")
 
   private[fixture] var _config: EnsimeConfig = _
 

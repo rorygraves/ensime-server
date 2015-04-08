@@ -1,7 +1,5 @@
 package org.ensime.core
 
-import java.io.File
-
 import akka.actor.{ Actor, ActorRef, ActorSystem, Cancellable, Props }
 import org.apache.commons.vfs2.FileObject
 import org.ensime.config._
@@ -17,7 +15,8 @@ import scala.util.Try
 
 class Project(
     val config: EnsimeConfig,
-    actorSystem: ActorSystem) extends ProjectEnsimeApiImpl {
+    actorSystem: ActorSystem,
+    asyncHandler: Option[EnsimeEvent => Unit]) extends ProjectEnsimeApiImpl {
   val log = LoggerFactory.getLogger(this.getClass)
 
   protected val actor = actorSystem.actorOf(Props(new ProjectActor()), "project")
@@ -76,21 +75,15 @@ class Project(
       tick.foreach(_.cancel())
     }
 
-    // buffer events until the first client connects
-    private var asyncEvents = Vector[EnsimeEvent]()
-    private var asyncListeners: List[EnsimeEvent => Unit] = Nil
-
-    override def receive: Receive = waiting orElse ready
-
     /**
      * If startup conditions are met, complete the initialisation promise.
      */
     def checkInitialisationComplete(): Unit = {
-      if (indexerReady && analyserReady && !readyPromise.isCompleted)
+      if (!readyPromise.isCompleted && indexerReady && analyserReady)
         readyPromise.tryComplete(Try(()))
     }
 
-    private val ready: Receive = {
+    override def receive: Receive = {
       case Retypecheck =>
         log.warn("Re-typecheck needed")
         analyzer.foreach(_ ! ReloadExistingFilesEvent)
@@ -106,33 +99,13 @@ class Project(
       case AnalyzerReadyEvent =>
         analyserReady = true
         checkInitialisationComplete()
-        forwardEvent(AnalyzerReadyEvent)
+        asyncHandler.foreach(_(AnalyzerReadyEvent))
       case IndexerReadyEvent =>
         indexerReady = true
         checkInitialisationComplete()
-        forwardEvent(IndexerReadyEvent)
+        asyncHandler.foreach(_(IndexerReadyEvent))
       case AsyncEvent(event) =>
-        forwardEvent(event)
-      case SubscribeAsync(handler) =>
-        asyncListeners ::= handler
-        sender ! false
-    }
-
-    private def forwardEvent(event: EnsimeEvent): Unit = {
-      asyncListeners foreach { l =>
-        l(event)
-      }
-    }
-
-    private val waiting: Receive = {
-      case SubscribeAsync(handler) =>
-        asyncListeners ::= handler
-        asyncEvents.foreach { event => handler(event) }
-        asyncEvents = Vector.empty
-        context.become(ready, discardOld = true)
-        sender ! true
-      case AsyncEvent(event) =>
-        asyncEvents :+= event
+        asyncHandler.foreach(_(event))
     }
   }
 

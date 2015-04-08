@@ -9,7 +9,7 @@ import com.google.common.base.Charsets
 import com.google.common.io.Files
 import org.ensime.EnsimeApi
 import org.ensime.config._
-import org.ensime.core.Project
+import org.ensime.core.{ EnsimeEvent, Project }
 import org.ensime.server.protocol.swank.SwankProtocol
 import org.ensime.server.protocol.{ IncomingMessageEvent, OutgoingMessageEvent, Protocol }
 import org.ensime.util._
@@ -53,7 +53,7 @@ object Server {
    */
   def initialiseServer(config: EnsimeConfig): (Server, Future[Unit]) = {
     val server = new Server(config, "127.0.0.1", 0,
-      (actorSystem, peerRef, rpcTarget) => { new SwankProtocol(actorSystem, peerRef, rpcTarget) }
+      (serverInst, actorSystem, peerRef, rpcTarget) => { new SwankProtocol(serverInst, actorSystem, peerRef, rpcTarget) }
     )
     val initFuture = server.start()
     (server, initFuture)
@@ -64,7 +64,7 @@ class Server(
     val config: EnsimeConfig,
     host: String,
     requestedPort: Int,
-    connectionCreator: (ActorSystem, ActorRef, EnsimeApi) => Protocol) {
+    connectionCreator: (Server, ActorSystem, ActorRef, EnsimeApi) => Protocol) extends EventServer {
 
   import org.ensime.server.Server.log
 
@@ -81,7 +81,9 @@ class Server(
 
   writePort(config.cacheDir, actualPort)
 
-  val project = new Project(config, actorSystem)
+  val asyncHandler = new ServerEventManager
+
+  val project = new Project(config, actorSystem, Some(asyncHandler.receiveEvent))
 
   /**
    * Start the server
@@ -126,6 +128,7 @@ class Server(
     actorSystem.awaitTermination()
     log.info("Shutdown complete")
   }
+
   private def writePort(cacheDir: File, port: Int): Unit = {
 
     val portfile = new File(cacheDir, "port")
@@ -145,6 +148,36 @@ class Server(
     val out = new PrintWriter(portfile)
     try out.println(port)
     finally out.close()
+  }
+  override def subscribeToEvents(handler: EnsimeEvent => Unit): Boolean = {
+    asyncHandler.subscribeToEvents(handler)
+  }
+}
+
+class ServerEventManager {
+
+  // buffer events until the first client connects
+  private var asyncEvents = Vector[EnsimeEvent]()
+  private var asyncListeners: List[EnsimeEvent => Unit] = Nil
+
+  def subscribeToEvents(handler: EnsimeEvent => Unit): Boolean = synchronized {
+    if (asyncListeners.isEmpty) {
+      asyncListeners ::= handler
+      asyncEvents.foreach { event => handler(event) }
+      asyncEvents = Vector.empty
+      true
+    } else {
+      false
+    }
+  }
+  def receiveEvent(event: EnsimeEvent): Unit = synchronized {
+    if (asyncListeners.isEmpty) {
+      asyncEvents :+= event
+    } else {
+      asyncListeners foreach { l =>
+        l(event)
+      }
+    }
   }
 }
 

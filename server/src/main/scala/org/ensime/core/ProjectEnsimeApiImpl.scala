@@ -50,10 +50,6 @@ trait ProjectEnsimeApiImpl extends EnsimeApi { self: Project =>
     shutdownServer()
   }
 
-  override def rpcSubscribeAsync(handler: EnsimeEvent => Unit): Boolean = {
-    callRPC[Boolean](actor, SubscribeAsync(handler))
-  }
-
   override def rpcPeekUndo(): Option[Undo] = {
     peekUndo()
   }

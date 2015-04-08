@@ -24,7 +24,7 @@ object ServerFixture {
 
     val asyncHelper = new AsyncMsgHelper(sys)
 
-    server.project.rpcSubscribeAsync(event => { asyncHelper.asyncReceived(event) })
+    server.subscribeToEvents(event => { asyncHelper.asyncReceived(event) })
 
     asyncHelper.expectAsync(60 seconds, AnalyzerReadyEvent) // compiler ready
     asyncHelper.expectAsync(60 seconds, FullTypeCheckCompleteEvent)
