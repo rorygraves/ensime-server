@@ -25,7 +25,7 @@ import scala.util.Try
  * @param target for async messages
  */
 class Project(
-    target: ActorRef,
+    broadcaster: ActorRef,
     implicit val config: EnsimeConfig
 ) extends Actor with ActorLogging with Stash {
   import context.system
@@ -49,7 +49,9 @@ class Project(
   private val searchService = new SearchService(config, resolver)
   searchService.refresh().onSuccess {
     case (deletes, inserts) =>
-      target ! IndexerReadyEvent
+      // legacy clients expect to see IndexerReady on connection.
+      // we could also just blindly send this on each connection.
+      broadcaster ! Broadcaster.Persist(IndexerReadyEvent)
       log.debug(s"indexed $inserts and removed $deletes")
   }(context.dispatcher)
 
@@ -63,9 +65,9 @@ class Project(
   private val classfileWatcher = new ClassfileWatcher(config, searchService :: reTypecheck :: Nil)
 
   override def preStart(): Unit = {
-    indexer = context.actorOf(Props(new Indexer(config, searchService)), "indexer")
-    analyzer = context.actorOf(Props(new Analyzer(target, indexer, searchService, config)), "analyzer")
-    debugger = context.actorOf(Props(new DebugManager(target, config)), "debugging")
+    indexer = context.actorOf(Indexer(searchService), "indexer")
+    analyzer = context.actorOf(Analyzer(broadcaster, indexer, searchService), "analyzer")
+    debugger = context.actorOf(DebugManager(broadcaster), "debugging")
   }
 
   override def postStop(): Unit = {

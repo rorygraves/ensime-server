@@ -80,6 +80,10 @@ class Server(
 
   implicit private val system = ActorSystem("ENSIME")
 
+  val broadcaster = system.actorOf(Broadcaster(), "broadcaster")
+  val project = system.actorOf(Project(broadcaster), "project")
+  // TODO: die if broadcaster/project stop
+
   // visible for testing
   val listener = new ServerSocket(requestedPort, 0, InetAddress.getByName(host))
 
@@ -94,15 +98,15 @@ class Server(
   def start(): Unit = {
     loop = new Thread {
       override def run(): Unit = {
-        try while (!hasShutdownFlag.get()) {
-          try {
+        try {
+          while (!hasShutdownFlag.get()) {
             val socket = listener.accept()
-            system.actorOf(SocketHandler(protocol, socket))
-          } catch {
-            case e: Exception =>
-              if (!hasShutdownFlag.get())
-                log.error("ENSIME Server socket listener error: ", e)
+            system.actorOf(SocketHandler(protocol, socket, broadcaster, project))
           }
+        } catch {
+          case e: Exception =>
+            if (!hasShutdownFlag.get())
+              log.error("ENSIME Server socket listener", e)
         } finally listener.close()
       }
     }
@@ -151,11 +155,12 @@ class Server(
 class SocketHandler(
     protocol: Protocol,
     socket: Socket,
+    broadcaster: ActorRef,
+    project: ActorRef,
     implicit val config: EnsimeConfig
 ) extends Actor with ActorLogging {
   import context.system
 
-  private var project: ActorRef = _
   private var docs: ActorRef = _
 
   private var in: InputStream = _
@@ -163,9 +168,9 @@ class SocketHandler(
   private var loop: Thread = _
 
   override def preStart(): Unit = {
-    project = context.actorOf(Project(self), "project")
-    docs = context.actorOf(Props(new DocServer(config)), "docs")
+    broadcaster ! Broadcaster.Register
 
+    docs = context.actorOf(Props(new DocServer(config)), "docs")
     in = socket.getInputStream.buffered
     out = socket.getOutputStream.buffered
 
@@ -188,6 +193,8 @@ class SocketHandler(
   }
 
   override def postStop(): Unit = {
+    broadcaster ! Broadcaster.Unregister
+
     Try(socket.close())
     Try(in.close())
     Try(out.close())
@@ -219,9 +226,11 @@ class SocketHandler(
 object SocketHandler {
   def apply(
     protocol: Protocol,
-    socket: Socket
+    socket: Socket,
+    broadcaster: ActorRef,
+    project: ActorRef
   )(implicit config: EnsimeConfig): Props =
-    Props(classOf[SocketHandler], protocol, socket, config)
+    Props(classOf[SocketHandler], protocol, socket, broadcaster, project, config)
 }
 
 /**

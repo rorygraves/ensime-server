@@ -1,11 +1,9 @@
 package org.ensime.core
 
-import akka.actor.Stash
+import akka.actor._
 import akka.event.LoggingReceive
 import java.io.File
 import java.nio.charset.Charset
-
-import akka.actor.{ Actor, ActorLogging, ActorRef }
 
 import org.ensime.api._
 import org.ensime.config._
@@ -46,13 +44,11 @@ case class DocSigPair(scala: DocSig, java: DocSig)
 case class DocUriReq(sig: DocSigPair)
 
 class Analyzer(
-    val project: ActorRef,
-    val indexer: ActorRef,
+    broadcaster: ActorRef,
+    indexer: ActorRef,
     search: SearchService,
-    val config: EnsimeConfig
-)(
-    implicit
-    vfs: EnsimeVFS
+    implicit val config: EnsimeConfig,
+    implicit val vfs: EnsimeVFS
 ) extends Actor with Stash with ActorLogging with RefactoringHandler {
 
   private val presCompLog = LoggerFactory.getLogger(classOf[Global])
@@ -74,13 +70,13 @@ class Analyzer(
 
   private val reportHandler = new ReportHandler {
     override def messageUser(str: String): Unit = {
-      project ! SendBackgroundMessageEvent(str, 101)
+      broadcaster ! SendBackgroundMessageEvent(str, 101)
     }
     override def clearAllScalaNotes(): Unit = {
-      project ! ClearAllScalaNotesEvent
+      broadcaster ! ClearAllScalaNotesEvent
     }
     override def reportScalaNotes(notes: List[Note]): Unit = {
-      project ! NewScalaNotesEvent(isFull = false, notes)
+      broadcaster ! NewScalaNotesEvent(isFull = false, notes)
     }
   }
 
@@ -93,7 +89,7 @@ class Analyzer(
   private var allFilesLoaded = false
 
   override def preStart(): Unit = {
-    project ! SendBackgroundMessageEvent("Initializing Analyzer. Please wait...")
+    broadcaster ! SendBackgroundMessageEvent("Initializing Analyzer. Please wait...")
     initTime = System.currentTimeMillis()
 
     import context.dispatcher
@@ -118,7 +114,7 @@ class Analyzer(
       scalaCompiler.askReloadFiles(files)
     }
     scalaCompiler.askNotifyWhenReady()
-    project ! CompilerRestartedEvent
+    broadcaster ! CompilerRestartedEvent
 
     context.become(loading)
   }
@@ -139,9 +135,11 @@ class Analyzer(
         val elapsed = System.currentTimeMillis() - initTime
         log.debug("Analyzer ready in " + elapsed / 1000.0 + " seconds.")
         reporter.enable()
-        project ! AnalyzerReadyEvent
+        // legacy clients expect to see AnalyzerReady on connection.
+        // we could also just blindly send this on each connection.
+        broadcaster ! Broadcaster.Persist(AnalyzerReadyEvent)
       }
-      project ! FullTypeCheckCompleteEvent
+      broadcaster ! FullTypeCheckCompleteEvent
       context.become(ready)
       unstashAll()
 
@@ -164,7 +162,7 @@ class Analyzer(
     //       (requires a lot of thought). i.e. we should *never*
     //       receive this message when in this state.
     case FullTypeCheckCompleteEvent =>
-      project ! FullTypeCheckCompleteEvent
+      broadcaster ! FullTypeCheckCompleteEvent
 
     case req: RpcAnalyserRequest =>
       // fommil: I'm not entirely sure about the logic of
@@ -325,4 +323,14 @@ class Analyzer(
   }
 
 }
-
+object Analyzer {
+  def apply(
+    broadcaster: ActorRef,
+    indexer: ActorRef,
+    search: SearchService
+  )(
+    implicit
+    config: EnsimeConfig,
+    vfs: EnsimeVFS
+  ) = Props(classOf[Analyzer], broadcaster, indexer, search, config, vfs)
+}

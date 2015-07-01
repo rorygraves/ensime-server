@@ -34,9 +34,9 @@ object ProjectFixture extends Matchers {
     }
 
     probe.receiveN(3) should contain only (
-      AnalyzerReadyEvent,
+      Broadcaster.Persist(AnalyzerReadyEvent),
       FullTypeCheckCompleteEvent,
-      IndexerReadyEvent
+      Broadcaster.Persist(IndexerReadyEvent)
     )
 
     (project, probe)

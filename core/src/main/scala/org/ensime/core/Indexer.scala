@@ -1,6 +1,6 @@
 package org.ensime.core
 
-import akka.actor.{ Actor, ActorLogging }
+import akka.actor._
 import akka.event.LoggingReceive
 
 import org.ensime.api._
@@ -13,11 +13,9 @@ import org.ensime.model._
 case class TypeCompletionsReq(prefix: String, maxResults: Int)
 
 class Indexer(
-    config: EnsimeConfig,
-    index: SearchService
-)(
-    implicit
-    vfs: EnsimeVFS
+    index: SearchService,
+    implicit val config: EnsimeConfig,
+    implicit val vfs: EnsimeVFS
 ) extends Actor with ActorLogging {
 
   private def typeResult(hit: FqnSymbol) = TypeSearchResult(
@@ -54,4 +52,7 @@ class Indexer(
       sender ! SymbolSearchResults(oldSearchTypes(query, maxResults))
 
   }
+}
+object Indexer {
+  def apply(index: SearchService)(implicit config: EnsimeConfig, vfs: EnsimeVFS): Props = Props(classOf[Indexer], index, config, vfs)
 }

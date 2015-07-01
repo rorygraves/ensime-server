@@ -4,6 +4,7 @@ import akka.event.slf4j.SLF4JLogging
 import org.ensime.model._
 import org.ensime.api._
 import org.ensime.util._
+import org.ensime.core._
 import org.scalatest.WordSpec
 import org.scalatest.Matchers
 

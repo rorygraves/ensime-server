@@ -2,8 +2,8 @@ package org.ensime.core
 
 import akka.event.LoggingReceive
 import java.io.{ File, InputStream, InputStreamReader }
+import akka.actor._
 
-import akka.actor.{ Actor, ActorLogging, ActorRef }
 import com.sun.jdi._
 import com.sun.jdi.event._
 import com.sun.jdi.request.{ EventRequest, EventRequestManager, StepRequest }
@@ -19,8 +19,16 @@ import scala.collection.{ Iterable, mutable }
 
 import pimpathon.file._
 
+object DebugManager {
+  def apply(
+    broadcaster: ActorRef
+  )(
+    implicit
+    config: EnsimeConfig
+  ): Props = Props(classOf[DebugManager], broadcaster, config)
+}
 class DebugManager(
-    project: ActorRef,
+    broadcaster: ActorRef,
     config: EnsimeConfig
 ) extends Actor with ActorLogging {
 
@@ -124,7 +132,7 @@ class DebugManager(
     }
     moveActiveBreaksToPending()
     maybeVM = None
-    project ! DebugVMDisconnectEvent
+    broadcaster ! DebugVMDisconnectEvent
   }
 
   def vmOptions(): List[String] = List(
@@ -174,7 +182,7 @@ class DebugManager(
   }
 
   def bgMessage(msg: String): Unit = {
-    project ! SendBackgroundMessageEvent(msg)
+    broadcaster ! SendBackgroundMessageEvent(msg)
   }
 
   // the JVM should have its own actor
@@ -195,18 +203,18 @@ class DebugManager(
         // by default we will attempt to start in suspended mode so we can attach breakpoints etc
         vm.resume()
       }
-      project ! DebugVMStartEvent
+      broadcaster ! DebugVMStartEvent
     case e: VMDeathEvent => disconnectDebugVM()
     case e: VMDisconnectEvent => disconnectDebugVM()
     case e: StepEvent =>
       (for (pos <- locToPos(e.location())) yield {
-        project ! DebugStepEvent(DebugThreadId(e.thread().uniqueID()), e.thread().name, pos.file, pos.line)
+        broadcaster ! DebugStepEvent(DebugThreadId(e.thread().uniqueID()), e.thread().name, pos.file, pos.line)
       }) getOrElse {
         log.warning("Step position not found: " + e.location().sourceName() + " : " + e.location().lineNumber())
       }
     case e: BreakpointEvent =>
       (for (pos <- locToPos(e.location())) yield {
-        project ! DebugBreakEvent(DebugThreadId(e.thread().uniqueID()), e.thread().name, pos.file, pos.line)
+        broadcaster ! DebugBreakEvent(DebugThreadId(e.thread().uniqueID()), e.thread().name, pos.file, pos.line)
       }) getOrElse {
         log.warning("Break position not found: " + e.location().sourceName() + " : " + e.location().lineNumber())
       }
@@ -214,7 +222,7 @@ class DebugManager(
       withVM { vm => vm.remember(e.exception) }
 
       val pos = if (e.catchLocation() != null) locToPos(e.catchLocation()) else None
-      project ! DebugExceptionEvent(
+      broadcaster ! DebugExceptionEvent(
         e.exception.uniqueID(),
         DebugThreadId(e.thread().uniqueID()),
         e.thread().name,
@@ -222,9 +230,9 @@ class DebugManager(
         pos.map(_.line)
       )
     case e: ThreadDeathEvent =>
-      project ! DebugThreadDeathEvent(DebugThreadId(e.thread().uniqueID()))
+      broadcaster ! DebugThreadDeathEvent(DebugThreadId(e.thread().uniqueID()))
     case e: ThreadStartEvent =>
-      project ! DebugThreadStartEvent(DebugThreadId(e.thread().uniqueID()))
+      broadcaster ! DebugThreadStartEvent(DebugThreadId(e.thread().uniqueID()))
     case e: AccessWatchpointEvent =>
     case e: ClassPrepareEvent =>
       withVM { vm =>
@@ -959,7 +967,7 @@ class DebugManager(
         val buf = new Array[Char](512)
         i = in.read(buf, 0, buf.length)
         while (!finished && i >= 0) {
-          project ! DebugOutputEvent(new String(buf, 0, i))
+          broadcaster ! DebugOutputEvent(new String(buf, 0, i))
           i = in.read(buf, 0, buf.length)
         }
       } catch {

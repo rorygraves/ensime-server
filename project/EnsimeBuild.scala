@@ -261,6 +261,7 @@ object EnsimeBuild extends Build with JdkResolver {
   ).settings (
     commonItSettings
   ).settings (
+    unmanagedJars in Compile += JavaTools,
     libraryDependencies ++= Seq(
       "io.spray" %% "spray-can" % "1.3.3"
     ) ++ testLibs(scalaVersion.value, "it,test")
