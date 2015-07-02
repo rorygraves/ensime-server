@@ -4,27 +4,22 @@ import java.io._
 import java.net.{ InetAddress, ServerSocket, Socket }
 import java.util.concurrent.atomic.AtomicBoolean
 
-import akka.event.slf4j.SLF4JLogging
 import akka.actor._
 import akka.event.LoggingReceive
-
+import akka.event.slf4j.SLF4JLogging
 import com.google.common.base.Charsets
 import com.google.common.io.Files
 import org.ensime.api._
 import org.ensime.config._
 import org.ensime.core._
-import org.ensime.server.protocol._
 import org.ensime.server.protocol.swank._
-import org.ensime.sexp.Sexp
 import org.slf4j._
 import org.slf4j.bridge.SLF4JBridgeHandler
-
-import scala.concurrent.Future
-import scala.util._
-import Properties._
-import scala.util.control.NonFatal
-
 import pimpathon.java.io._
+
+import scala.util.Properties._
+import scala.util._
+import scala.util.control.NonFatal
 
 object Server {
   SLF4JBridgeHandler.removeHandlersForRootLogger()
@@ -159,7 +154,6 @@ class SocketHandler(
     project: ActorRef,
     implicit val config: EnsimeConfig
 ) extends Actor with ActorLogging {
-  import context.system
 
   private var docs: ActorRef = _
 
@@ -175,17 +169,24 @@ class SocketHandler(
     out = socket.getOutputStream.buffered
 
     loop = new Thread {
-      override def run(): Unit = while (!socket.isClosed()) try {
-        val envelope = protocol.read(in)
-        context.actorOf(RequestHandler(envelope, project, self, docs), s"${envelope.callId}")
-      } catch {
-        case SwankRPCFormatException(msg, callId, cause) =>
-          // specialist SWANK support
-          self ! RpcResponseEnvelope(callId, EnsimeServerError(msg))
+      var finished = false
+      override def run(): Unit = while (!finished && !socket.isClosed()) {
+        try {
+          val envelope = protocol.read(in)
+          context.actorOf(RequestHandler(envelope, project, self, docs), s"${envelope.callId}")
+        } catch {
+          case SwankRPCFormatException(msg, callId, cause) =>
+            // specialist SWANK support
+            self ! RpcResponseEnvelope(callId, EnsimeServerError(msg))
 
-        case NonFatal(e) =>
-          log.error(e, "Error in socket reader: ")
-        // otherwise ignore the message
+          case e: IOException =>
+            log.info("IOException seen - stopping reader")
+            context.stop(self)
+            finished = true
+          case NonFatal(e) =>
+            log.error(e, "Error in socket reader: ")
+          // otherwise ignore the message
+        }
       }
     }
     loop.setName("ENSIME Protocol Loop")
@@ -193,6 +194,7 @@ class SocketHandler(
   }
 
   override def postStop(): Unit = {
+    log.info("Closing socket")
     broadcaster ! Broadcaster.Unregister
 
     Try(socket.close())
