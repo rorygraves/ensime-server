@@ -6,14 +6,13 @@ import akka.actor._
 import akka.event.LoggingReceive.withLabel
 import org.apache.commons.vfs2.FileObject
 import org.ensime.api._
-import org.ensime.core.debug.DebugManager
+import org.ensime.core.debug.DebugActor
 import org.ensime.vfs._
 import org.ensime.indexer._
 
 import scala.collection.immutable.ListSet
 import scala.concurrent.duration._
 import scala.util._
-
 import org.ensime.util.file._
 import org.ensime.util.FileUtils
 
@@ -96,7 +95,7 @@ class Project(
       scalac = system.deadLetters
       javac = context.actorOf(JavaAnalyzer(broadcaster, indexer, searchService), "javac")
     }
-    debugger = context.actorOf(DebugManager(broadcaster), "debugging")
+    debugger = context.actorOf(DebugActor.props(broadcaster), "debugging")
     docs = context.actorOf(DocResolver(), "docs")
   }
 
