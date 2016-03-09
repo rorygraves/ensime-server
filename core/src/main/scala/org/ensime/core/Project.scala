@@ -2,6 +2,7 @@
 // Licence: http://www.gnu.org/licenses/gpl-3.0.en.html
 package org.ensime.core
 
+import akka.actor.Actor._
 import akka.actor._
 import akka.event.LoggingReceive
 import akka.event.LoggingReceive.withLabel
@@ -55,6 +56,27 @@ class Project(
   }
   private val classfileWatcher = context.actorOf(Props(new ClassfileWatcher(config, searchService :: reTypecheck :: Nil)), "classFileWatcher")
 
+  var seenWorkSinceIdle = true
+//  var lastMessageReceived = System.currentTimeMillis()
+
+  def processIdleMessage(): Unit = {
+    if(seenWorkSinceIdle) {
+      seenWorkSinceIdle = false
+    } else
+      System.gc()
+  }
+
+  def seenWorkMessage(): Unit = {
+    seenWorkSinceIdle = true
+  }
+
+  case object Idle
+  var idleCallback: Option[Cancellable] = None
+
+  override def preStart(): Unit = {
+    idleCallback = Some(context.system.scheduler.schedule(5.seconds,5.seconds, context.self, Idle))
+  }
+
   def receive: Receive = awaitingConnectionInfoReq
 
   def awaitingConnectionInfoReq: Receive = withLabel("awaitingConnectionInfoReq") {
@@ -106,6 +128,7 @@ class Project(
 
   override def postStop(): Unit = {
     // make sure the "reliable" dependencies are cleaned up
+    idleCallback.foreach(_.cancel)
     Try(sourceWatcher.shutdown())
     searchService.shutdown() // async
     Try(vfs.close())
@@ -114,7 +137,15 @@ class Project(
   // debounces ReloadExistingFilesEvent
   private var rechecking: Cancellable = _
 
-  def handleRequests: Receive = withLabel("handleRequests") {
+  def idleMonitor(r: Receive)(implicit context: ActorContext): Receive = r match {
+    case Idle =>
+      processIdleMessage() ; r
+    case _ =>
+      seenWorkMessage ; r
+  }
+
+
+  def handleRequests: Receive = withLabel("handleRequests")(idleMonitor {
     case AskReTypecheck =>
       Option(rechecking).foreach(_.cancel())
       rechecking = system.scheduler.scheduleOnce(
@@ -142,7 +173,7 @@ class Project(
     // added here to prevent errors when client sends this repeatedly (e.g. as a keepalive
     case ConnectionInfoReq =>
       sender() ! ConnectionInfo()
-  }
+  })
 
 }
 object Project {
