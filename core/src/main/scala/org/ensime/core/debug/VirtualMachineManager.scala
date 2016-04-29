@@ -186,7 +186,7 @@ class VirtualMachineManager(
     import org.scaladebugger.api.dsl.Implicits._
 
     // If our VM disconnects/dies, stop the debugger
-    // TODO: This is not wise if we are using a Listening debugger which can have
+    // CHIP: This is not wise if we are using a Listening debugger which can have
     //       more than one JVM connected at once
     s.onUnsafeVMDisconnect().foreach(_ => stop())
     s.onUnsafeVMDeath().foreach(_ => stop())

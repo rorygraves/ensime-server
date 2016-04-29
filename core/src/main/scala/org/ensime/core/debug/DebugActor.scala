@@ -47,7 +47,7 @@ class DebugActor private (
   private val converter: StructureConverter = new StructureConverter(sourceMap)
   private val vmm: VirtualMachineManager = new VirtualMachineManager(
     // Signal to the user that the JVM has disconnected
-    // TODO: Move active breakpoints to pending?
+    // CHIP: Move active breakpoints to pending?
     globalStopFunc = s => broadcaster ! DebugVMDisconnectEvent
   )
 
@@ -65,7 +65,7 @@ class DebugActor private (
     case DebugAttachReq(hostname, port) =>
       vmm.stop()
 
-      // TODO: Error will be a future timeout, need to see if can grab reason
+      // CHIP: Error will be a future timeout, need to see if can grab reason
       Try(vmm.start(VmAttach(hostname, port))).failed.foreach(t => {
         log.error(t, "Failure during VM startup")
         val message = t.toString
@@ -106,7 +106,7 @@ class DebugActor private (
     case DebugContinueReq(threadId) =>
       sender ! withThread(threadId.id, {
         case (s, t) =>
-          // TODO: Why is this resuming the entire VM instead of the single thread?
+          // CHIP: Why is this resuming the entire VM instead of the single thread?
           s.underlyingVirtualMachine.resume()
           TrueResponse
       })
@@ -117,7 +117,7 @@ class DebugActor private (
         // Retrieve org/path/file.scala from file
         val fileName = sourceMap.parsePath(file)
 
-        // TODO: Figure out why location examining needed to compare the
+        // CHIP: Figure out why location examining needed to compare the
         //       sourcePath, sourceName, and lineNumber for each location
         //       pulled from the file's reference types AND its methods, why
         //       do we need to look up the line that way?
@@ -427,7 +427,7 @@ class DebugActor private (
    * @param scalaVirtualMachine The JVM whose events to listen to
    */
   private def bindEventHandlers(scalaVirtualMachine: ScalaVirtualMachine): Unit = {
-    // TODO: Provide specific event listeners (versus generic with casting)
+    // CHIP: Provide specific event listeners (versus generic with casting)
     import com.sun.jdi.event._
 
     // Send start event to client when received
@@ -536,7 +536,7 @@ class DebugActor private (
     // Class Prepare Event - log new class name
     scalaVirtualMachine.createEventListener(EventType.ClassPrepareEventType).foreach(e => {
       val cpe = e.asInstanceOf[ClassPrepareEvent]
-      // TODO: Add ReferenceType wrapper method
+      // CHIP: Add ReferenceType wrapper method
       log.info(s"ClassPrepareEvent: ${cpe.referenceType().name()}")
     })
   }

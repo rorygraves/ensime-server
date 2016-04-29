@@ -32,7 +32,7 @@ class SourceMap(private val config: EnsimeConfig) {
   private lazy val sources: Set[File] = config.scalaSourceFiles.map(_.canon)
   private lazy val sourceMap: Map[String, Set[File]] = sources.groupBy(_.getName)
 
-  // TODO: Provide cleaner generation of path map by finding root directory
+  // CHIP: Provide cleaner generation of path map by finding root directory
   //       (or multiple directories) and filling in the map in advance
   import scala.collection.JavaConverters._
   private lazy val pathMap: mutable.Map[String, File] =
