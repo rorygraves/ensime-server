@@ -62,37 +62,11 @@ class DebugActor private (
    */
   override def receive: Receive = LoggingReceive {
     // ========================================================================
-    case DebugStartReq(commandLine: String) =>
-      vmm.stop()
-
-      // Include Ensime's runtime classpath for the launched JVM and
-      val options = Seq(
-        "-classpath",
-        config.runtimeClasspath.mkString("\"", File.pathSeparator, "\"")
-      ) ++ config.debugVMArgs
-
-      // TODO: Error will be a future timeout, need to see if can grab reason
-      Try(vmm.start(VmStart(commandLine), options)).failed.foreach(t => {
-        log.error(t, "Failure during VM startup")
-        println(t)
-        val message = t.toString
-        DebugVmError(1, message)
-      })
-
-      sender ! DebugVmSuccess()
-
-    // ========================================================================
     case DebugAttachReq(hostname, port) =>
       vmm.stop()
 
-      // Include Ensime's runtime classpath for the launched JVM and
-      val options = Seq(
-        "-classpath",
-        config.runtimeClasspath.mkString("\"", File.pathSeparator, "\"")
-      ) ++ config.debugVMArgs
-
       // TODO: Error will be a future timeout, need to see if can grab reason
-      Try(vmm.start(VmAttach(hostname, port), options)).failed.foreach(t => {
+      Try(vmm.start(VmAttach(hostname, port))).failed.foreach(t => {
         log.error(t, "Failure during VM startup")
         val message = t.toString
         DebugVmError(1, message)
