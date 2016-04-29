@@ -20,9 +20,9 @@ import scala.concurrent.duration._
 
 // must be refreshing as the tests don't clean up after themselves properly
 class DebugTest extends EnsimeSpec
-    with IsolatedEnsimeConfigFixture
-    with IsolatedTestKitFixture
-    with IsolatedProjectFixture
+    with SharedEnsimeConfigFixture
+    with SharedTestKitFixture
+    with SharedProjectFixture
     with DebugTestUtils {
 
   val original = EnsimeConfigFixture.DebugTestProject.copy(
