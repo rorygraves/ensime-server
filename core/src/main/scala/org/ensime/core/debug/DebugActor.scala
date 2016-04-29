@@ -308,7 +308,13 @@ class DebugActor private (
     val result = vmm.withVM(action).orElse(vmm.withDummyVM(action))
 
     // Report error information
-    result.failed.foreach(e => log.warning("Failed to process VM action", e))
+    result.failed.foreach(e => {
+      // CHIP: Remove this once tests are stable
+      println("ERROR "
+        + Option(e.getLocalizedMessage).getOrElse(e.getClass.getName)
+        + e.getStackTrace.mkString("\n"))
+      log.warning("Failed to process VM action", e)
+    })
 
     result.getOrElse(FalseResponse)
   }
@@ -331,6 +337,10 @@ class DebugActor private (
 
     // Report error information
     result.failed.foreach(e => {
+      // CHIP: Remove this once tests are stable
+      println("ERROR "
+        + Option(e.getLocalizedMessage).getOrElse(e.getClass.getName)
+        + e.getStackTrace.mkString("\n"))
       log.warning(s"Unable to retrieve thread with id: $threadId", e)
     })
 
