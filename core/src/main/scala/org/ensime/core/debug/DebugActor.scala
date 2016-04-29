@@ -163,7 +163,7 @@ class DebugActor private (
       }).map {
         case (a, p) =>
 
-          /** Convert collection of BreakpointRequestInfo to Ensime Breakpoint */
+          // Convert collection of BreakpointRequestInfo to Ensime Breakpoint
           def convert(b: Seq[BreakpointRequestInfo]) = b.map(b2 =>
             (sourceMap.sourceForFilePath(b2.fileName), b2.lineNumber)).filter(_._1.nonEmpty).map(t => Breakpoint(t._1.get, t._2))
 
