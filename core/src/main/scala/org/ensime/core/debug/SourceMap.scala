@@ -5,13 +5,13 @@ package org.ensime.core.debug
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
-import org.ensime.api.{ EnsimeConfig, LineSourcePosition }
-import org.slf4j.LoggerFactory
-
-import scala.collection.mutable
+import org.ensime.api.{EnsimeConfig, LineSourcePosition}
 import org.ensime.config._
 import org.ensime.util.file.RichFile
 import org.scaladebugger.api.profiles.traits.info.LocationInfoProfile
+import org.slf4j.LoggerFactory
+
+import scala.collection.mutable
 
 /**
  * Represents a utility to map local source files provided by Ensime to

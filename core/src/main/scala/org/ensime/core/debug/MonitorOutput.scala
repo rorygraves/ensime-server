@@ -2,7 +2,7 @@
 // Licence: http://www.gnu.org/licenses/gpl-3.0.en.html
 package org.ensime.core.debug
 
-import java.io.{ InputStreamReader, InputStream }
+import java.io.{InputStream, InputStreamReader}
 
 import akka.actor.ActorRef
 import org.ensime.api.DebugOutputEvent
