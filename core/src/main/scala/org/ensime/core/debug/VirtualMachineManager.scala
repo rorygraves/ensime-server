@@ -1,11 +1,11 @@
 package org.ensime.core.debug
 
 import com.sun.jdi.VMDisconnectedException
-import org.scaladebugger.api.debuggers.{AttachingDebugger, Debugger, LaunchingDebugger}
-import org.scaladebugger.api.virtualmachines.{DummyScalaVirtualMachine, ScalaVirtualMachine}
+import org.scaladebugger.api.debuggers.{ AttachingDebugger, Debugger, LaunchingDebugger }
+import org.scaladebugger.api.virtualmachines.{ DummyScalaVirtualMachine, ScalaVirtualMachine }
 import org.slf4j.LoggerFactory
 
-import scala.util.{Failure, Try}
+import scala.util.{ Failure, Try }
 
 /**
  * Represents a manager of virtual machines connected to Ensime.

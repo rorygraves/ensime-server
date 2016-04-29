@@ -1,6 +1,6 @@
 package org.ensime.core.debug
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import akka.actor.{ Actor, ActorLogging, ActorRef, Props }
 import akka.event.LoggingReceive
 import org.ensime.api._
 import org.scaladebugger.api.dsl.Implicits._
@@ -9,9 +9,9 @@ import org.scaladebugger.api.lowlevel.events.EventType
 import org.scaladebugger.api.lowlevel.events.misc.NoResume
 import org.scaladebugger.api.lowlevel.requests.properties.SuspendPolicyProperty
 import org.scaladebugger.api.profiles.traits.info._
-import org.scaladebugger.api.virtualmachines.{ObjectCache, ScalaVirtualMachine}
+import org.scaladebugger.api.virtualmachines.{ ObjectCache, ScalaVirtualMachine }
 
-import scala.util.{Failure, Success, Try}
+import scala.util.{ Failure, Success, Try }
 
 /**
  * Contains helper methods to initialize the DebugActor class.

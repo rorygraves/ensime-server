@@ -5,7 +5,7 @@ package org.ensime.core.debug
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
-import org.ensime.api.{EnsimeConfig, LineSourcePosition}
+import org.ensime.api.{ EnsimeConfig, LineSourcePosition }
 import org.ensime.config._
 import org.ensime.util.file.RichFile
 import org.scaladebugger.api.profiles.traits.info.LocationInfoProfile
