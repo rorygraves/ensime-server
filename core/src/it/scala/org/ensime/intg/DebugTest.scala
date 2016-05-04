@@ -29,7 +29,11 @@ class DebugTest extends EnsimeSpec
     javaLibs = Nil // no need to index the JRE
   )
 
-  "Debug - stepping" should "handle basic stepping" taggedAs (Debugger) ignore {
+  // CHIP/Rory - create a basic stepping test - not a clever one.
+  // CHIP/Rory - create a set value test
+  // CHIP/Roryr - DebugToStringReq test
+
+  "Debug - stepping" should "handle stepping into a for loop" taggedAs Debugger ignore {
     withEnsimeConfig { implicit config =>
       withTestKit { implicit testkit =>
         withProject { (project, asyncHelper) =>
@@ -38,11 +42,11 @@ class DebugTest extends EnsimeSpec
             "stepping.ForComprehensionListString",
             "stepping/ForComprehensionListString.scala",
             9
-          ) { breakpointsFile =>
+          ) { (threadId, breakpointsFile) =>
               import testkit._
 
               checkTopStackFrame("stepping.ForComprehensionListString$", "main", 9)
-              project ! DebugNextReq(DebugThreadId(1))
+              project ! DebugNextReq(threadId)
               expectMsg(VoidResponse)
 
               checkTopStackFrame("stepping.ForComprehensionListString$$anonfun$main$1", "apply", 10)
@@ -52,7 +56,7 @@ class DebugTest extends EnsimeSpec
     }
   }
 
-  "Breakpoints" should "trigger/continue" taggedAs (Debugger) in withEnsimeConfig { implicit config =>
+  "Breakpoints" should "trigger/continue" taggedAs Debugger in withEnsimeConfig { implicit config =>
     withTestKit { implicit testkit =>
       withProject { (project, asyncHelper) =>
         implicit val p = (project, asyncHelper)
@@ -60,9 +64,8 @@ class DebugTest extends EnsimeSpec
           "breakpoints.Breakpoints",
           "breakpoints/Breakpoints.scala",
           32
-        ) { breakpointsFile =>
+        ) { (threadId, breakpointsFile) =>
             import testkit._
-            val breakpointsPath = breakpointsFile.getAbsolutePath
 
             // NOTE: Can encounter scala/Predef.scala if picking stack trace
             //       at arbitrary point
@@ -127,7 +130,7 @@ class DebugTest extends EnsimeSpec
     }
   }
 
-  it should "list/clear" taggedAs (Debugger) in withEnsimeConfig { implicit config =>
+  it should "list/clear" taggedAs Debugger in withEnsimeConfig { implicit config =>
     withTestKit { implicit testkit =>
       withProject { (project, asyncHelper) =>
         implicit val p = (project, asyncHelper)
@@ -135,38 +138,38 @@ class DebugTest extends EnsimeSpec
           "breakpoints.Breakpoints",
           "breakpoints/Breakpoints.scala",
           32
-        ) { breakpointsFile =>
-            import testkit._
-            val breakpointsPath = breakpointsFile.getAbsolutePath
+        ) {
+            case (threadId, breakpointsFile) =>
+              import testkit._
 
-            project ! DebugListBreakpointsReq
-            expectMsgType[BreakpointList] should matchPattern {
-              case BreakpointList(Nil, Nil) =>
-            }
+              project ! DebugListBreakpointsReq
+              expectMsgType[BreakpointList] should matchPattern {
+                case BreakpointList(Nil, Nil) =>
+              }
 
-            // break in main
-            project ! DebugSetBreakReq(breakpointsFile, 11)
-            expectMsg(TrueResponse)
-            project ! DebugSetBreakReq(breakpointsFile, 13)
-            expectMsg(TrueResponse)
+              // break in main
+              project ! DebugSetBreakReq(breakpointsFile, 11)
+              expectMsg(TrueResponse)
+              project ! DebugSetBreakReq(breakpointsFile, 13)
+              expectMsg(TrueResponse)
 
-            // breakpoints should now be active
-            project ! DebugListBreakpointsReq
-            inside(expectMsgType[BreakpointList]) {
-              case BreakpointList(activeBreakpoints, pendingBreakpoints) =>
-                activeBreakpoints should contain theSameElementsAs Set(
-                  Breakpoint(breakpointsFile, 11), Breakpoint(breakpointsFile, 13)
-                )
-                pendingBreakpoints shouldBe empty
-            }
+              // breakpoints should now be active
+              project ! DebugListBreakpointsReq
+              inside(expectMsgType[BreakpointList]) {
+                case BreakpointList(activeBreakpoints, pendingBreakpoints) =>
+                  activeBreakpoints should contain theSameElementsAs Set(
+                    Breakpoint(breakpointsFile, 11), Breakpoint(breakpointsFile, 13)
+                  )
+                  pendingBreakpoints shouldBe empty
+              }
 
-            // check clear works again
-            project ! DebugClearAllBreaksReq
-            expectMsg(TrueResponse)
-            project ! DebugListBreakpointsReq
-            expectMsgType[BreakpointList] should matchPattern {
-              case BreakpointList(Nil, Nil) =>
-            }
+              // check clear works again
+              project ! DebugClearAllBreaksReq
+              expectMsg(TrueResponse)
+              project ! DebugListBreakpointsReq
+              expectMsgType[BreakpointList] should matchPattern {
+                case BreakpointList(Nil, Nil) =>
+              }
           }
       }
     }
@@ -174,7 +177,7 @@ class DebugTest extends EnsimeSpec
 
   // starting up a debug session for each variable is unneeded and wasteful of test time.
   // this approach means that there is one test method, but it still explores all of the paths.
-  "Debug Inspect variables" should "inspect variables" taggedAs (Debugger) in withEnsimeConfig { implicit config =>
+  "Debug Inspect variables" should "inspect variables" taggedAs Debugger in withEnsimeConfig { implicit config =>
     withTestKit { implicit testkit =>
       withProject { (project, asyncHelper) =>
         implicit val p = (project, asyncHelper)
@@ -182,44 +185,44 @@ class DebugTest extends EnsimeSpec
           "debug.Variables",
           "debug/Variables.scala",
           21
-        ) { variablesFile =>
+        ) { (threadId, variablesFile) =>
             // boolean local
-            getVariableValue(DebugThreadId(1), "a") should matchPattern {
+            getVariableValue(threadId, "a") should matchPattern {
               case DebugPrimitiveValue("true", "boolean") =>
             }
 
             // char local
-            getVariableValue(DebugThreadId(1), "b") should matchPattern {
+            getVariableValue(threadId, "b") should matchPattern {
               case DebugPrimitiveValue("'c'", "char") =>
             }
 
             // short local
-            getVariableValue(DebugThreadId(1), "c") should matchPattern {
+            getVariableValue(threadId, "c") should matchPattern {
               case DebugPrimitiveValue("3", "short") =>
             }
 
             // int local
-            getVariableValue(DebugThreadId(1), "d") should matchPattern {
+            getVariableValue(threadId, "d") should matchPattern {
               case DebugPrimitiveValue("4", "int") =>
             }
 
             // long local
-            getVariableValue(DebugThreadId(1), "e") should matchPattern {
+            getVariableValue(threadId, "e") should matchPattern {
               case DebugPrimitiveValue("5", "long") =>
             }
 
             // float local
-            getVariableValue(DebugThreadId(1), "f") should matchPattern {
+            getVariableValue(threadId, "f") should matchPattern {
               case DebugPrimitiveValue("1.0", "float") =>
             }
 
             // double local
-            getVariableValue(DebugThreadId(1), "g") should matchPattern {
+            getVariableValue(threadId, "g") should matchPattern {
               case DebugPrimitiveValue("2.0", "double") =>
             }
 
             // String local
-            inside(getVariableValue(DebugThreadId(1), "h")) {
+            inside(getVariableValue(threadId, "h")) {
               case DebugStringInstance("\"test\"", debugFields, "java.lang.String", _) =>
                 exactly(1, debugFields) should matchPattern {
                   case DebugClassField(_, "value", "char[]", "Array(length = 4)['t','e','s',...]") =>
@@ -227,12 +230,12 @@ class DebugTest extends EnsimeSpec
             }
 
             // primitive array local
-            getVariableValue(DebugThreadId(1), "i") should matchPattern {
+            getVariableValue(threadId, "i") should matchPattern {
               case DebugArrayInstance(3, "int[]", "int", _) =>
             }
 
             // type local
-            inside(getVariableValue(DebugThreadId(1), "j")) {
+            inside(getVariableValue(threadId, "j")) {
               case DebugObjectInstance(summary, debugFields, "scala.collection.immutable.$colon$colon", _) =>
                 summary should startWith("Instance of scala.collection.immutable.$colon$colon")
                 exactly(1, debugFields) should matchPattern {
@@ -244,9 +247,29 @@ class DebugTest extends EnsimeSpec
             }
 
             // object array local
-            getVariableValue(DebugThreadId(1), "k") should matchPattern {
+            getVariableValue(threadId, "k") should matchPattern {
               case DebugArrayInstance(3, "java.lang.Object[]", "java.lang.Object", _) =>
             }
+          }
+      }
+    }
+  }
+
+  "Debug backtrace" should "generate backtrace" taggedAs Debugger in withEnsimeConfig { implicit config =>
+    withTestKit { implicit testkit =>
+      withProject { (project, asyncHelper) =>
+        implicit val p = (project, asyncHelper)
+        withDebugSession(
+          "debug.Backtrace",
+          "debug/Backtrace.scala",
+          13
+        ) { (threadId, f) =>
+            import testkit._
+            project ! DebugBacktraceReq(threadId, 0, 20)
+            val backTrace = expectMsgType[DebugBacktrace]
+            // just some sanity assertions
+            assert(backTrace.frames.forall(_.className.startsWith("debug.Backtrace")))
+            assert(backTrace.frames.forall(_.pcLocation.file.toString.endsWith("Backtrace.scala")))
           }
       }
     }
@@ -263,14 +286,14 @@ trait DebugTestUtils {
    * @param className containing the main method
    * @param fileName to place the breakpoint
    * @param breakLine where to start the session in the fileName
-   * @param f The test code to execute
+   * @param func The test code to execute (gives the debug thread id of the main thread and file handle)
    */
   def withDebugSession(
     className: String,
     fileName: String,
     breakLine: Int
   )(
-    f: File => Any
+    func: (DebugThreadId, File) => Any
   )(
     implicit
     config: EnsimeConfig,
@@ -299,15 +322,20 @@ trait DebugTestUtils {
     // weird! we sometimes see a duplicate break event instantly, not really expected
     val additionalOnStartup = Try(asyncHelper.expectMsgType[EnsimeServerMessage](1 second)).toOption.toSeq
     // but it doesn't always come through
-    (gotOnStartup +: additionalOnStartup) should contain(
-      DebugBreakEvent(DebugThreadId(1), "main", resolvedFile, breakLine)
-    )
+
+    val allEvents = gotOnStartup +: additionalOnStartup
+    val threadId = allEvents.flatMap {
+      case DebugBreakEvent(foundThreadId, "main", `resolvedFile`, `breakLine`) =>
+        List(foundThreadId)
+      case _ =>
+        Nil
+    }.headOption.getOrElse(fail("Cannot work out main threadId"))
 
     project ! DebugClearBreakReq(resolvedFile, breakLine)
     expectMsg(TrueResponse)
 
     try {
-      f(resolvedFile)
+      func(threadId, resolvedFile)
     } finally {
       try {
         project ! DebugClearAllBreaksReq
@@ -358,9 +386,9 @@ object VMStarter extends SLF4JLogging {
     new Thread(new Runnable() {
       override def run(): Unit = {
         val sc = new Scanner(src)
-        while (sc.hasNextLine()) {
+        while (sc.hasNextLine) {
           if (!promise.isCompleted) promise.trySuccess(())
-          log.info("DEBUGGING_PROCESS:" + sc.nextLine());
+          log.info("DEBUGGING_PROCESS:" + sc.nextLine())
         }
       }
     }).start()
@@ -390,7 +418,7 @@ object VMStarter extends SLF4JLogging {
       args.asJava
     ).redirectErrorStream(true).start()
 
-    val logging = logLines(process.getInputStream())
+    val logging = logLines(process.getInputStream)
 
     (process, "127.0.0.1", port, logging)
   }
