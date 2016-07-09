@@ -25,7 +25,7 @@ final case class ShutdownRequest(reason: String, isError: Boolean = false)
 class Project(
     broadcaster: ActorRef,
     implicit val config: EnsimeConfig
-) extends Actor with ActorLogging with Stash {
+) extends Actor with ActorLogging {
   import context.{ dispatcher, system }
 
   import org.ensime.util.FileUtils._
